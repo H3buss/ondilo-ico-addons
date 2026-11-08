@@ -1,0 +1,46 @@
+name: "Ondilo ICO port forward"
+description: "Forwards host port 80 to Home Assistant so the ICO probe can reach it without a PC"
+version: "1.1.1"
+slug: "ondilo_ico_pipe"
+url: "https://github.com/H3buss/ondilo-ico-addons"
+# The Supervisor shows an app only when its arch list covers the machine, and it says
+# nothing when it hides one - a repository that looks empty is usually this, not a bad
+# file. So this list says exactly what the Dockerfile can build, and nothing more: the
+# base image it pulls is published for amd64 and arm64 (read on the registry index of
+# ghcr.io/home-assistant/base, 8 November 2026). armv7 would need a build.yaml naming a
+# per-arch legacy base; until that is verified for real, listing armv7 here would
+# promise a build that cannot pull and would fail with "no matching manifest".
+arch:
+  - aarch64
+  - amd64
+
+# Every Home Assistant base image boots S6 overlay version 3, and S6 3 refuses
+# to start when Docker puts its own init in front of it. Left at the default,
+# the container reports "running", no service ever launches, and nothing
+# listens on the port: the quietest possible way to fail.
+init: false
+
+# Lowercase: the Supervisor coerces this onto an enum whose values are
+# "initialize", "system", "services", "application", "once". The uppercase
+# spelling some older add-ons still ship is a validation error today.
+startup: system
+boot: auto
+
+# The probe must reach the host's port 80 and Home Assistant must still see the
+# probe's real address, which a published port would replace with the Docker
+# bridge gateway. host_network is not gated by protection mode, so this works
+# with the Supervisor's protection mode left on.
+host_network: true
+
+options:
+  listen_port: 80
+  target: "homeassistant:8123"
+
+# Option types are matched against the Supervisor's RE_SCHEMA_ELEMENT, which takes ranges
+# positionally: str(1,32), int(0,10), float(0.0,10.5). The named spelling int(min=1,
+# max=65535) is not in that grammar at all, and an add-on whose schema does not match is
+# dropped from the store with a single warning line - the repository stays listed, the app
+# is simply never shown. "port" is the Supervisor's own type and enforces 1-65535 for us.
+schema:
+  listen_port: port
+  target: str
